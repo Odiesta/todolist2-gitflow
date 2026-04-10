@@ -139,5 +139,267 @@
         <p>Double-click to edit a todo • Data saved locally</p>
       </footer>
     </div>
+
+    <script>
+      // ==================== STATE ====================
+      let todos = JSON.parse(localStorage.getItem("todos")) || [];
+      let currentFilter = "all";
+
+      // ==================== DOM ELEMENTS ====================
+      const todoForm = document.getElementById("todo-form");
+      const todoInput = document.getElementById("todo-input");
+      const todoList = document.getElementById("todo-list");
+      const itemsLeft = document.getElementById("items-left");
+      const clearCompletedBtn = document.getElementById("clear-completed");
+      const emptyState = document.getElementById("empty-state");
+      const filterBtns = document.querySelectorAll(".filter-btn");
+
+      // ==================== FUNCTIONS ====================
+
+      // Save to localStorage
+      function saveTodos() {
+        localStorage.setItem("todos", JSON.stringify(todos));
+      }
+
+      // Generate unique ID
+      function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+      }
+
+      // Add new todo
+      function addTodo(text) {
+        if (!text.trim()) return;
+
+        const todo = {
+          id: generateId(),
+          text: text.trim(),
+          completed: false,
+          createdAt: new Date().toISOString(),
+        };
+
+        todos.unshift(todo);
+        saveTodos();
+        renderTodos();
+        todoInput.value = "";
+      }
+
+      // Toggle todo completion
+      function toggleTodo(id) {
+        todos = todos.map((todo) =>
+          todo.id === id ? { ...todo, completed: !todo.completed } : todo,
+        );
+        saveTodos();
+        renderTodos();
+      }
+
+      // Delete todo
+      function deleteTodo(id) {
+        todos = todos.filter((todo) => todo.id !== id);
+        saveTodos();
+        renderTodos();
+      }
+
+      // Edit todo (inline)
+      function editTodo(id, newText) {
+        if (!newText.trim()) {
+          deleteTodo(id);
+          return;
+        }
+        todos = todos.map((todo) =>
+          todo.id === id ? { ...todo, text: newText.trim() } : todo,
+        );
+        saveTodos();
+        renderTodos();
+      }
+
+      // Clear completed todos
+      function clearCompleted() {
+        todos = todos.filter((todo) => !todo.completed);
+        saveTodos();
+        renderTodos();
+      }
+
+      // Filter todos
+      function getFilteredTodos() {
+        switch (currentFilter) {
+          case "active":
+            return todos.filter((t) => !t.completed);
+          case "completed":
+            return todos.filter((t) => t.completed);
+          default:
+            return todos;
+        }
+      }
+
+      // Render todos list
+      function renderTodos() {
+        const filtered = getFilteredTodos();
+        todoList.innerHTML = "";
+
+        // Toggle empty state
+        if (filtered.length === 0) {
+          emptyState.classList.remove("hidden");
+        } else {
+          emptyState.classList.add("hidden");
+        }
+
+        // Render each todo
+        filtered.forEach((todo) => {
+          const li = document.createElement("li");
+          li.className =
+            "todo-enter p-4 hover:bg-gray-50 transition group flex items-center gap-3";
+          li.innerHTML = `
+          <input 
+            type="checkbox" 
+            ${todo.completed ? "checked" : ""} 
+            class="w-5 h-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
+            data-id="${todo.id}"
+          />
+          <span 
+            class="flex-1 text-gray-800 ${todo.completed ? "line-through" : ""} cursor-pointer select-none"
+            data-id="${todo.id}"
+            ondblclick="startEdit(this)"
+          >${escapeHtml(todo.text)}</span>
+          <button 
+            class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition p-1"
+            data-id="${todo.id}"
+            aria-label="Delete todo"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+          </button>
+        `;
+          todoList.appendChild(li);
+        });
+
+        // Update stats
+        const activeCount = todos.filter((t) => !t.completed).length;
+        itemsLeft.textContent = `${activeCount} item${activeCount !== 1 ? "s" : ""} left`;
+      }
+
+      // Escape HTML to prevent XSS
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Start inline edit
+      window.startEdit = function (element) {
+        const id = element.dataset.id;
+        const todo = todos.find((t) => t.id === id);
+        if (!todo || todo.completed) return;
+
+        const span = element;
+        const originalText = todo.text;
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = originalText;
+        input.className =
+          "flex-1 px-2 py-1 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500";
+
+        input.addEventListener("blur", () => finishEdit(id, input.value, span));
+        input.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            finishEdit(id, input.value, span);
+          }
+          if (e.key === "Escape") {
+            span.textContent = escapeHtml(originalText);
+          }
+        });
+
+        span.replaceWith(input);
+        input.focus();
+        input.select();
+      };
+
+      // Finish inline edit
+      function finishEdit(id, newText, originalElement) {
+        if (
+          newText.trim() &&
+          newText !== todos.find((t) => t.id === id)?.text
+        ) {
+          editTodo(id, newText);
+        } else {
+          renderTodos();
+        }
+      }
+
+      // ==================== EVENT LISTENERS ====================
+
+      // Add todo on form submit
+      todoForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        addTodo(todoInput.value);
+      });
+
+      // Event delegation for todo list
+      todoList.addEventListener("click", (e) => {
+        const target = e.target;
+        const id = target.closest("[data-id]")?.dataset.id;
+
+        if (!id) return;
+
+        // Toggle checkbox
+        if (target.type === "checkbox") {
+          toggleTodo(id);
+        }
+
+        // Delete button
+        if (
+          target.closest("button") &&
+          target.closest("button").ariaLabel === "Delete todo"
+        ) {
+          deleteTodo(id);
+        }
+
+        // Toggle by clicking text (not in edit mode)
+        if (target.tagName === "SPAN" && !target.closest("input")) {
+          toggleTodo(id);
+        }
+      });
+
+      // Clear completed
+      clearCompletedBtn.addEventListener("click", clearCompleted);
+
+      // Filter buttons
+      filterBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          // Update active state
+          filterBtns.forEach((b) => {
+            b.classList.remove(
+              "text-indigo-600",
+              "border-indigo-600",
+              "border-b-2",
+            );
+            b.classList.add("text-gray-500");
+          });
+          btn.classList.remove("text-gray-500");
+          btn.classList.add(
+            "text-indigo-600",
+            "border-indigo-600",
+            "border-b-2",
+          );
+
+          // Apply filter
+          currentFilter = btn.dataset.filter;
+          renderTodos();
+        });
+      });
+
+      // Keyboard shortcut: Ctrl/Cmd + Enter to add
+      todoInput.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+          e.preventDefault();
+          addTodo(todoInput.value);
+        }
+      });
+
+      // ==================== INIT ====================
+      renderTodos();
+    </script>
   </body>
 </html>
