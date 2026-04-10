@@ -289,9 +289,8 @@
       window.startEdit = function (element) {
         const id = element.dataset.id;
         const todo = todos.find((t) => t.id === id);
-        if (!todo || todo.completed) return;
+        if (!todo) return;
 
-        const span = element;
         const originalText = todo.text;
 
         const input = document.createElement("input");
@@ -300,24 +299,25 @@
         input.className =
           "flex-1 px-2 py-1 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
-        input.addEventListener("blur", () => finishEdit(id, input.value, span));
-        input.addEventListener("keypress", (e) => {
+        input.addEventListener("blur", () => finishEdit(id, input.value));
+        input.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            finishEdit(id, input.value, span);
+            finishEdit(id, input.value);
           }
           if (e.key === "Escape") {
-            span.textContent = escapeHtml(originalText);
+            e.preventDefault();
+            renderTodos();
           }
         });
 
-        span.replaceWith(input);
+        element.replaceWith(input);
         input.focus();
         input.select();
       };
 
       // Finish inline edit
-      function finishEdit(id, newText, originalElement) {
+      function finishEdit(id, newText) {
         if (
           newText.trim() &&
           newText !== todos.find((t) => t.id === id)?.text
@@ -354,11 +354,6 @@
           target.closest("button").ariaLabel === "Delete todo"
         ) {
           deleteTodo(id);
-        }
-
-        // Toggle by clicking text (not in edit mode)
-        if (target.tagName === "SPAN" && !target.closest("input")) {
-          toggleTodo(id);
         }
       });
 
